@@ -2,31 +2,26 @@ declare @TimezoneName varchar(max) = 'AUS Eastern Standard Time'
 declare @timezoneOffset bigint = Datediff( MINUTE, getdate() at time zone @TimezoneName, getdate() )
 
 DROP TABLE IF EXISTS #temp1
-DROP TABLE IF EXISTS #temp2
 
-select p.pointkey,assetid 
+select lv.pointkey,assetid 
 into #temp1
-from dbo.IBMSPoints p inner join dbo.IBMSPointTemplates tp 
+from dbo.IBMSPointLastValues lv 
+inner join dbo.IBMSPoints p on p.PointKey=lv.PointKey inner join dbo.IBMSPointTemplates tp 
 on p.PointTemplateKey=tp.PointTemplateKey inner join AssetMaster am on am.AssetKey=p.AssetKey 
 where assetid like '%-em-%' 
 and pointtemplatename='Total Consumption (kWh)'
 order by AssetID asc
 
-
-select pointkey,pointvalue,TransactionDateTime
-into #temp2
-from
+select t.pointkey,TransactionDateTime,pointvalue,assetid from
 (SELECT pointkey,PointValue,transactiondatetime,
    ROW_NUMBER() OVER (PARTITION BY pointkey Order by trendkey asc) AS rown
 FROM IBMSTrends_510 tr
 where pointkey in (select pointkey from #temp1)
 and pointvalue is not null
-and TransactionDateTime>SWITCHOFFSET('2021-10-01', @timezoneOffset)
-and TransactionDateTime<SWITCHOFFSET('2021-10-30', @timezoneOffset)
+and TransactionDateTime>SWITCHOFFSET('2021-12-01', @timezoneOffset)
+and TransactionDateTime<SWITCHOFFSET('2021-12-30', @timezoneOffset)
 )rnk
+inner join #temp1 t on rnk.PointKey=t.pointkey
 where rown=1
 --and pointvalue is not null
-order by pointkey
-
-select t1.pointkey,pointvalue,TransactionDateTime,pointvalue,assetid from #temp2 t2
-full join #temp1 t1 on t2.PointKey=t1.pointkey
+order by t.pointkey
